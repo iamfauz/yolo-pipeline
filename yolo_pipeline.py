@@ -54,7 +54,7 @@ def start_proccesor():
         # Start Proccessing on each frames
         task_futures = []
         for i in range(len(frames)):
-             task = executor.submit(process_frame, i, frame[i])
+             task = executor.submit(process_frame, i, frames[i])
              task_futures.append(task)
 
         # Wait for all futures to complete
@@ -120,7 +120,8 @@ if __name__ == '__main__':
 
     # Init Capture objects from all camera streams
     vcap1 = cv2.VideoCapture("rtmp://62.113.210.250/medienasa-live/rbw_high")
-    vcap2 = cv2.VideoCapture('rtsp://freja.hiof.no:1935/rtplive/_definst_/hessdalen03.stream')
+    vcap2 = cv2.VideoCapture("rtmp://62.113.210.250/medienasa-live/rbw_high")
+    #vcap2 = cv2.VideoCapture('rtsp://freja.hiof.no:1935/rtplive/_definst_/hessdalen03.stream')
     
     # Added the stream objects to global variable
     camera_streams.append(vcap1)
