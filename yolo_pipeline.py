@@ -3,20 +3,19 @@ from concurrent.futures import ThreadPoolExecutor, wait
 import threading
 from flask import Response, Flask, render_template
 import argparse 
+from stream_manager import StreamManager
 
 # initialize the output frame and a lock used to ensure thread-safe
 # exchanges of the output frames (useful when multiple browsers/tabs are viewing the stream)
 camera_id = 1
 lock = threading.Lock()
  
-# initialize a flask object
+# Initialize a flask object
 app = Flask(__name__)
 
-
-# Global Camera Streams 
-# Index will correspond to camera ID
-camera_streams = []
-camera_streams_urls = []
+# Init Stream Manager
+camera_streams_urls = ["rtmp://62.113.210.250/medienasa-live/rbw_high", "rtmp://62.113.210.250/medienasa-live/rbw_high"]
+stream_manager = StreamManager(camera_streams_urls)
 
 class CameraStream:
     def __init__(self, id, url):
@@ -46,50 +45,10 @@ def start_proccesor():
     while True:
         
         # Reading frames from each camera
-        frames = get_latest_frames()
+        frames = stream_manager.get_latest_frames()
 
-        task_futures = proccess_frames(executor, frames, process_frame)
+        results = stream_manager.proccess_frames(executor, frames, process_frame)
 
-        
-            
-
-# Runs YOLO on each frames return the results
-def proccess_frames(executor, frames, process_func):
-    # Start Proccessing on each frames
-    task_futures = []
-    for i in range(len(frames)):
-        task = executor.submit(process_func, i, frames[i])
-        task_futures.append(task)
-
-    # Wait for all futures to complete
-    wait(task_futures)
-        
-    # Create results array to be consumed by 
-    # Camera Switching Algorithm
-    results = []
-    for i in range(len(task_futures)): 
-        results.append(task_futures[i].result())
-    return task_futures
-    
-# Method that return the latest frames from all camera streams
-def get_latest_frames():
-     # Reading frames from each camera
-    frames = []
-    for i in range(len(camera_streams)):
-        ret, frame = camera_streams[i].read()
-        frames.append(frame)
-    return frames
-
-# Method that return the latest frame from given camera id
-def get_frame_from_camera_id(id):
-    ret, frame = camera_streams[id].read()
-    print(frame)
-    return frame
-
-def switch_camera(id):
-    global lock, camera_id
-    with lock:
-        camera_id = id
 
 @app.route("/")
 def index():
@@ -130,31 +89,21 @@ def generate_stream_from_camera_id():
 def video_feed():
     # return the response generated along with the specific media
     # type (mime type)
-    return Response( generate_stream_from_camera_id(),
+    return Response(stream_manager.generate_stream_from_camera_id(),
         mimetype = "multipart/x-mixed-replace; boundary=frame")
 
 if __name__ == '__main__':
 
     # Argument Parsing
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--ip", type=str, required=False, default='192.168.70.145',
+    ap.add_argument("-i", "--ip", type=str, required=False, default='localhost',
         help="ip address of the device")
     ap.add_argument("-o", "--port", type=int, required=False, default=8000, 
-        help="ephemeral port number of the server (1024 to 65535)")
+        help="Port number of the server (1024 to 65535)")
 
     args = vars(ap.parse_args())
 
-    # Init Capture objects from all camera streams
-    vcap1 = cv2.VideoCapture("rtmp://62.113.210.250/medienasa-live/rbw_high")
-    vcap2 = cv2.VideoCapture("rtmp://62.113.210.250/medienasa-live/rbw_high")
-    #vcap2 = cv2.VideoCapture('rtsp://freja.hiof.no:1935/rtplive/_definst_/hessdalen03.stream')
-    
-    # Added the stream objects to global variable
-    camera_streams.append(vcap1)
-    camera_streams.append(vcap2)
 
-    camera_streams_urls = ["rtmp://62.113.210.250/medienasa-live/rbw_high", "rtmp://62.113.210.250/medienasa-live/rbw_high"]
-    
     # Start Proccessor in different thread
     t = threading.Thread(target=start_proccesor)
     t.daemon = True
