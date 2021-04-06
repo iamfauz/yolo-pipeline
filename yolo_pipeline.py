@@ -4,6 +4,7 @@ import threading
 from flask import Response, Flask, render_template
 import argparse 
 from stream_manager import StreamManager
+import time
 
 # initialize the output frame and a lock used to ensure thread-safe
 # exchanges of the output frames (useful when multiple browsers/tabs are viewing the stream)
@@ -28,11 +29,11 @@ def process_frame(camera, frame):
     #TODO - Run Yolo model here
     
     # Right now displaying frame for testing purposes
-    # if camera == 1:
-    #     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    if camera == 1:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    cv2.imshow(f'Camera{camera}', frame) 
-    cv2.waitKey(1) 
+    #cv2.imshow(f'Camera{camera}', frame) 
+    #cv2.waitKey(1) 
     return frame
 
 
@@ -49,47 +50,22 @@ def start_proccesor():
 
         results = stream_manager.proccess_frames(executor, frames, process_frame)
 
+        stream_manager.set_current_output_frame(frames[1])
+        #time.sleep(1)
+
+
+
 
 @app.route("/")
 def index():
     # return the rendered template
     return render_template("index.html")
 
-
-def generate_stream_from_camera_id():
-    global lock, camera_id, camera_streams_urls
-    
-    vcap = []
-    for i in range(len(camera_streams_urls)):
-        vcap.append(cv2.VideoCapture(camera_streams_urls[i]))
-
- 
-    while True:
-        # wait until the lock is acquired
-        with lock:
-            
-            ret, output_frame = vcap[camera_id].read() 
-            
-        if output_frame is None:
-            continue
-
-        # Encode the frame in JPEG format
-        (flag, encoded_image) = cv2.imencode(".jpg", output_frame.copy())
-
-        # Ensure the frame was successfully encoded
-        if not flag:
-            continue
- 
-        # yield the output frame in the byte format
-        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
-            bytearray(encoded_image) + b'\r\n')
-
-
 @app.route("/video_feed")
 def video_feed():
     # return the response generated along with the specific media
     # type (mime type)
-    return Response(stream_manager.generate_stream_from_camera_id(),
+    return Response(stream_manager.generate_stream_from_output_frame(),
         mimetype = "multipart/x-mixed-replace; boundary=frame")
 
 if __name__ == '__main__':
